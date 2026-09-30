@@ -9,6 +9,7 @@ La ritaglia dalla pagina e la aggiunge a days.json.
 Uso:
   python generate.py                                   # il giorno appena finito (ora di Roma)
   python generate.py 2026-09-27,2026-09-28,2026-09-29  # giorni specifici (prova / recupero)
+  python generate.py 2026-09-28:2                      # rifà quel giorno con la seconda scelta
 """
 import datetime as dt
 import io
@@ -104,6 +105,15 @@ def entropy(gray):
     return float(-(p * np.log2(p)).sum())
 
 
+def flat_share(gray, b=6):
+    """Quota di tasselli a tinta unita: alta nelle pubblicità (fondi, loghi), bassa nelle foto stampate."""
+    hh, ww = (gray.shape[0] // b) * b, (gray.shape[1] // b) * b
+    if hh == 0 or ww == 0:
+        return 1.0
+    blocks = gray[:hh, :ww].reshape(hh // b, b, ww // b, b).swapaxes(1, 2).reshape(-1, b * b)
+    return float((blocks.std(axis=1) < 3).mean())
+
+
 def photo_regions(img):
     """Riquadri della pagina che sembrano fotografie: zone piene, senza carta bianca, con molti toni."""
     W = 400
@@ -129,7 +139,12 @@ def photo_regions(img):
             continue
         if (labels[sl] == i).mean() < 0.85:                          # deve essere un rettangolo pieno
             continue
-        if entropy(small[sl].mean(axis=2)) < 2.5:                     # scritte e fasce di colore: pochi toni
+        if ys.start / h > 0.72 or ys.stop / h < 0.2:                   # fascia pubblicitaria in basso / accanto alla testata
+            continue
+        gray = small[sl].mean(axis=2)
+        if entropy(gray) < 2.5:                                        # scritte e fasce di colore: pochi toni
+            continue
+        if flat_share(gray) > 0.3:                                     # fondi piatti = grafica/pubblicità, non foto
             continue
         # rientra dell'1.5% per non prendere cornici e filetti
         dx, dy = int(bw * 0.015), int(bh * 0.015)
@@ -146,7 +161,7 @@ def dhash(img, size=12):
 
 # ---------- scelta ----------
 
-def process(day):
+def process(day, rank=1):
     page = find_page(day)
     if not page:
         print(f"{day}: rassegna del Post non trovata")
@@ -175,8 +190,12 @@ def process(day):
                   and np.count_nonzero(cands[i][3] != cands[j][3]) <= 30}
         return len(papers)
 
-    scored = [(repeats(i), c[2], i) for i, c in enumerate(cands)]
-    rep, _, best = max(scored)
+    scored = sorted(((repeats(i), c[2], i) for i, c in enumerate(cands)), reverse=True)
+    picked = []  # una sola voce per foto: le copie della stessa immagine su altre testate non contano come alternative
+    for rep, _, i in scored:
+        if all(np.count_nonzero(cands[i][3] != cands[j][3]) > 30 for _, j in picked):
+            picked.append((rep, i))
+    rep, best = picked[min(rank, len(picked)) - 1]
     paper, crop, area, _ = cands[best]
     print(f"{day}: scelta da {paper} (su {rep + 1} prime pagine, {area:.0%} della pagina)")
 
@@ -193,11 +212,17 @@ def main():
         print("non è mezzanotte a Roma: salto")
         return
 
+    # "2026-09-28" = genera se manca; "2026-09-28:1" = rigenera; "2026-09-28:2" = seconda scelta, ecc.
     arg = ",".join(sys.argv[1:]).strip()
-    if arg:
-        days = [dt.date.fromisoformat(s.strip()) for s in arg.split(",") if s.strip()]
-    else:
-        days = [now.date() - dt.timedelta(days=1)]
+    jobs = []
+    for item in (arg.split(",") if arg else []):
+        item = item.strip()
+        if not item:
+            continue
+        date_s, _, rank_s = item.partition(":")
+        jobs.append((dt.date.fromisoformat(date_s), int(rank_s) if rank_s else None))
+    if not jobs:
+        jobs = [(now.date() - dt.timedelta(days=1), None)]
 
     entries = []
     if os.path.exists(DATA):
@@ -205,17 +230,17 @@ def main():
             entries = json.load(f)
     done = {e["date"] for e in entries}
 
-    for day in days:
-        if day.isoformat() in done:
+    for day, rank in jobs:
+        if rank is None and day.isoformat() in done:
             print(f"{day}: già pubblicata")
             continue
         try:
-            entry = process(day)
+            entry = process(day, rank or 1)
         except Exception as ex:
             print(f"{day}: errore — {ex}")
             entry = None
         if entry:
-            entries.append(entry)
+            entries = [e for e in entries if e["date"] != entry["date"]] + [entry]
 
     entries.sort(key=lambda e: e["date"])
     with open(DATA, "w", encoding="utf-8") as f:

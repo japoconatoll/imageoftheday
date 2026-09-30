@@ -50,8 +50,9 @@
   }
   .strip::-webkit-scrollbar { display: none; }
 
-  figure { flex: 0 0 auto; height: 100%; display: flex; flex-direction: column; }
-  figure img { display: block; height: calc(100% - var(--date)); width: auto; max-width: none; }
+  figure { flex: 0 0 auto; display: block; }
+  /* altezza e larghezza calcolate in pixel dallo script, sempre con le proporzioni della foto */
+  figure img { display: block; max-width: none; object-fit: contain; }
   figcaption {
     height: var(--date);
     display: flex;
@@ -84,7 +85,8 @@
       days.forEach((d, i) => {
         const fig = document.createElement('figure');
         const img = new Image();
-        if (d.w && d.h) { img.width = d.w; img.height = d.h; }
+        img.dataset.r = d.w && d.h ? d.w / d.h : 1.5;
+        img.addEventListener('load', fit);
         if (i > 2) img.loading = 'lazy';
         img.decoding = 'async';
         img.src = d.src;
@@ -94,7 +96,21 @@
         fig.append(img, cap);
         strip.append(fig);
       });
+      fit();
     });
+
+  // l'immagine prende tutta l'altezza disponibile, la larghezza segue le sue proporzioni
+  function fit() {
+    const cs = getComputedStyle(strip);
+    const cap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--date')) || 28;
+    const h = Math.floor(strip.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - cap);
+    strip.querySelectorAll('img').forEach(img => {
+      const r = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : +img.dataset.r;
+      img.style.height = h + 'px';
+      img.style.width = Math.round(h * r) + 'px';
+    });
+  }
+  window.addEventListener('resize', fit);
 
   // vertical mouse wheel scrolls the row sideways
   strip.addEventListener('wheel', e => {
