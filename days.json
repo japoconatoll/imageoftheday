@@ -1,1 +1,26 @@
-[]
+[
+ {
+  "date": "2026-09-27",
+  "src": "images/2026-09-27.jpg",
+  "w": 427,
+  "h": 191,
+  "paper": "il-quotidiano-del-sud-031828bpx5ryx",
+  "pages": 1
+ },
+ {
+  "date": "2026-09-28",
+  "src": "images/2026-09-28.jpg",
+  "w": 427,
+  "h": 253,
+  "paper": "il quotidiano del sud",
+  "pages": 1
+ },
+ {
+  "date": "2026-09-29",
+  "src": "images/2026-09-29.jpg",
+  "w": 282,
+  "h": 291,
+  "paper": "italia oggi",
+  "pages": 1
+ }
+]
