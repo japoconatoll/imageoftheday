@@ -11,6 +11,8 @@
     --ink: #000000;
     --pad: clamp(12px, 2.4vh, 28px);
     --date: 28px;
+    --col: clamp(42px, 4.5vw, 60px);
+    --gutter: 8px;
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -22,11 +24,14 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* IMAGE OF THE DAY, one letter under the other, stretched to the height of the images */
+  /* IMAGE OF THE DAY: una lettera sotto l'altra, fissata a sinistra, alta quanto le immagini */
   .title {
-    flex: 0 0 auto;
-    width: clamp(30px, 4.5vw, 56px);
-    padding: var(--pad) 0 calc(var(--pad) + var(--date));
+    position: fixed;
+    z-index: 3;
+    left: 0;
+    top: calc(env(safe-area-inset-top, 0px) + var(--pad));
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pad) + var(--date));
+    width: var(--col);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -38,12 +43,49 @@
   }
   .title i { font-style: normal; display: block; height: 1em; }
 
+  /* INFO: nell'angolo in basso a sinistra, sulla riga delle date */
+  .info-btn {
+    position: fixed;
+    z-index: 3;
+    left: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pad));
+    width: var(--col);
+    height: var(--date);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: none;
+    border: 0;
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .info-btn:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+  .info-btn[aria-expanded="true"] { text-decoration: underline; text-underline-offset: 3px; }
+
+  .info {
+    position: fixed;
+    z-index: 2;
+    inset: 0 0 0 calc(var(--col) + var(--gutter));
+    background: var(--bg);
+    padding: calc(env(safe-area-inset-top, 0px) + var(--pad)) var(--pad) var(--pad) 0;
+    overflow-y: auto;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .info[hidden] { display: none; }
+  .info p { max-width: 34em; margin-bottom: 1em; }
+  .info .small { font-size: 12px; }
+
   .strip {
     flex: 1 1 auto;
     display: flex;
     gap: clamp(16px, 3vw, 48px);
     overflow-x: auto;
     overflow-y: hidden;
+    min-width: 0;
+    margin-left: calc(var(--col) + var(--gutter));
     padding: var(--pad) var(--pad) var(--pad) 0;
     scrollbar-width: none;
     outline: none;
@@ -68,6 +110,13 @@
     <i>I</i><i>M</i><i>A</i><i>G</i><i>E</i><i></i><i>O</i><i>F</i><i></i><i>T</i><i>H</i><i>E</i><i></i><i>D</i><i>A</i><i>Y</i>
   </h1>
   <main class="strip" id="strip" tabindex="0"></main>
+
+  <button class="info-btn" id="info-btn" aria-expanded="false" aria-controls="info">INFO</button>
+  <section class="info" id="info" hidden>
+    <p>Every night at midnight a program goes through the front pages of about sixty Italian newspapers, finds the photographs printed on them and keeps one: the image repeated on the most front pages that day, or, when nothing repeats, the largest. It is cut out of the page as it was printed and posted with its date.</p>
+    <p>No one chooses.</p>
+    <p class="small">A project by Jacopo Natoli, 2026.<br>Front pages from Il Post's daily review of the press. Photographs belong to their authors and publishers.</p>
+  </section>
 
 <script>
   const strip = document.getElementById('strip');
@@ -111,6 +160,16 @@
     });
   }
   window.addEventListener('resize', fit);
+
+  const infoBtn = document.getElementById('info-btn');
+  const info = document.getElementById('info');
+  function toggleInfo(open) {
+    info.hidden = !open;
+    infoBtn.setAttribute('aria-expanded', open);
+  }
+  infoBtn.addEventListener('click', () => toggleInfo(info.hidden));
+  info.addEventListener('click', () => toggleInfo(false));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleInfo(false); });
 
   // vertical mouse wheel scrolls the row sideways
   strip.addEventListener('wheel', e => {
