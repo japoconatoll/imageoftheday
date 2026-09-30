@@ -1,0 +1,59 @@
+name: image of the day
+
+on:
+  schedule:
+    - cron: "0 22 * * *"
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+    inputs:
+      dates:
+        description: "Giorni da generare (YYYY-MM-DD separati da virgola). Vuoto = ieri"
+        required: false
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: image-of-the-day
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scegli la foto del giorno
+        if: github.event_name != 'push'
+        run: |
+          pip install -r requirements.txt
+          python generate.py ${{ github.event.inputs.dates }}
+        env:
+          SCHEDULED: ${{ github.event_name == 'schedule' && '1' || '' }}
+
+      - name: Salva
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "image-of-the-day"
+          git config user.email "image-of-the-day@users.noreply.github.com"
+          git add days.json images
+          git diff --cached --quiet || git commit -m "image of the day"
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+      - id: deploy
+        uses: actions/deploy-pages@v4
